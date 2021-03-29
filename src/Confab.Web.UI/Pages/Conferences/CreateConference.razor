@@ -1,0 +1,169 @@
+﻿@page "/conferences/create"
+@using System.ComponentModel.DataAnnotations
+@using Confab.Web.Core.Conferences
+@using Confab.Web.Core.Conferences.Requests
+@using Confab.Web.Core.DTO
+@using Confab.Web.Core.Hosts
+@using Confab.Web.UI.Services
+@inject NavigationManager NavigationManager
+@inject IConferenceService ConferenceService
+@inject IHostService HostService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 10%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Add Conference</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                @if (_selectedHost is not null)
+                {
+                    <MudSelect @bind-Value="_selectedHost.Id" HelperText="Host">
+                        @foreach (HostDto host in _hosts)
+                        {
+                            <MudSelectItem Value="@host.Id">@host.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                }
+                <MudForm @bind-IsValid="@_success" Model="@_createConferenceModel" @bind-Errors="@_errors">
+                    <MudTextField T="string" @bind-Value="@_createConferenceModel.Name" Required="true" RequiredError="Name is required!"
+                                  Validation="@(new Func<string, IEnumerable<string>>(NameStrength))" HelperText="Name"/>
+                    <MudTextField T="string" @bind-Value="@_createConferenceModel.Description"
+                                  Validation="@(new Func<string, IEnumerable<string>>(DescriptionStrength))" Lines="5"
+                                  Required="true" RequiredError="Description is required!" HelperText="Description"/>
+                    <MudDateRangePicker HelperText="Date" DateRange="@(new DateRange(From, To))"/>
+                    <MudTextField T="string" @bind-Value="@_createConferenceModel.Location" Required="true" RequiredError="Location is required!"
+                                  Validation="@(new Func<string, IEnumerable<string>>(LocationStrength))" HelperText="Location"/>
+                    <MudTextField @bind-Value="@_createConferenceModel.ParticipantsLimit" HelperText="Participants Limit"/>
+                    <MudTextField T="string" @bind-Value="@_createConferenceModel.LogoUrl" HelperText="Logo Url"/>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitted || !_success" OnClick="Create" Class="ml-auto">Create</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+@code {
+    private DateTime From { get; set; } = DateTime.UtcNow;
+    private DateTime To { get; set; } = DateTime.UtcNow.AddDays(7);
+    private List<HostDto> _hosts = new();
+    private HostDto _selectedHost { get; set; }
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private CreateConferenceModel _createConferenceModel = new();
+
+    private class CreateConferenceModel
+    {
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string Name { get; set; }
+
+        [Required]
+        [MinLength(10)]
+        [MaxLength(1000)]
+        public string Description { get; set; }
+
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string Location { get; set; }
+
+        public int? ParticipantsLimit { get; set; }
+
+        public string? LogoUrl { get; set; }
+    }
+
+    private async Task Create()
+    {
+        _submitted = true;
+        if (To <= From)
+        {
+            Snackbar.Add("Invalid dates.", Severity.Error);
+            return;
+        }
+        
+        var request = new CreateConferenceRequest
+        {
+            Name = _createConferenceModel.Name,
+            Location = _createConferenceModel.Location,
+            Description = _createConferenceModel.Description,
+            From = From,
+            To = To,
+            HostId = _selectedHost.Id,
+            ParticipantsLimit = _createConferenceModel.ParticipantsLimit,
+            LogoUrl = _createConferenceModel.LogoUrl
+        };
+        
+        var response = await ApiResponseHandler.HandleAsync(ConferenceService.CreateAsync(request));
+        _submitted = false;
+        
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Conference has been created.", Severity.Success);
+            NavigationManager.NavigateTo("conferences");
+        }
+    }
+
+    private async Task GetHosts()
+    {
+        _hosts = await ApiResponseHandler.HandleAsync(HostService.BrowseAsync());
+        _selectedHost = _hosts.First();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetHosts();
+    }
+    
+    private IEnumerable<string> NameStrength(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            yield return "Name is required!";
+            yield break;
+        }
+        
+        if (name.Length < 3)
+            yield return "Name must be at least of length 3.";
+        
+        if (name.Length > 100)
+            yield return "Location length must be less than 100.";
+    }
+    
+    private IEnumerable<string> LocationStrength(string location)
+    {
+        if (string.IsNullOrWhiteSpace(location))
+        {
+            yield return "Location is required!";
+            yield break;
+        }
+        
+        if (location.Length < 3)
+            yield return "Location must be at least of length 3.";
+        
+        if (location.Length > 100)
+            yield return "Location length must be less than 100.";
+    }
+    
+    private IEnumerable<string> DescriptionStrength(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            yield return "Description is required!";
+            yield break;
+        }
+        
+        if (description.Length < 10)
+            yield return "Description must be at least of length 10.";
+        
+        if (description.Length > 1000)
+            yield return "Description length must be less than 1000.";
+    }
+}

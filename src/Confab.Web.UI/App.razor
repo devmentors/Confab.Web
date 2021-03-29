@@ -1,0 +1,23 @@
+﻿<Router AppAssembly="@typeof(Program).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <MudContainer>
+                <MudGrid>
+                    <MudItem xs="12" Style="margin-top: 20%">
+                        <MudGrid Spacing="1" Justify="Justify.Center">
+                            <MudItem>
+                                <MudText Typo="Typo.h4"><i>Sorry, there's nothing at this address.</i></MudText>
+                            </MudItem>
+                        </MudGrid>
+                    </MudItem>
+                </MudGrid>
+            </MudContainer>
+        </LayoutView>
+    </NotFound>
+</Router>
+<MudThemeProvider/>
+<MudDialogProvider/>
+<MudSnackbarProvider/>

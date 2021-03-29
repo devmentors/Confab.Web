@@ -1,0 +1,170 @@
+﻿@page "/sign-up"
+@using System.ComponentModel.DataAnnotations
+@using System.Net
+@using Confab.Web.UI.Services
+@inject ISnackbar Snackbar;
+@inject IAuthenticationService AuthenticationService
+@inject IUserService UserService
+@inject NavigationManager NavigationManager
+@using Confab.Web.Core.Modules
+@using Confab.Web.Core.Users
+@using Confab.Web.Core.Users.Requests
+@inject IModuleService ModuleService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 30%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Sign Up</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudForm Model="@_signUpModel" @bind-IsValid="@_success" @bind-Errors="@_errors">
+                    <MudTextField @bind-Value="@_signUpModel.Email" T="string" HelperText="Email" Required="true" RequiredError="Email is required!"
+                                  Validation="@(new EmailAddressAttribute() {ErrorMessage = "The email address is invalid"})"/>
+                    <MudTextField @bind-Value="@_signUpModel.Password" T="string" HelperText="Password"
+                                   InputType="InputType.Password" Required="true"
+                                   Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))"
+                                   RequiredError="Password is required!"/>
+                    <br/>
+                    <div class="d-flex">
+                        <MudSelect @bind-Value="_selectedRole.Value" HelperText="Role">
+                            @foreach (RoleModel role in _roles)
+                            {
+                                <MudSelectItem Value="@role.Value">@role.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </div>
+                    <div class="d-flex">
+                        <MudSelect T="string" HelperText="Permissions" MultiSelection="true" @bind-SelectedValues="@_selectedPermissions">
+                            @foreach (var permission in _permissions)
+                            {
+                                <MudSelectItem T="string" Value="@permission">@permission</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </div>
+                    <br/>
+                    <MudText>Already have an account? Click <MudLink Color="Color.Secondary" Href="/sign-in" Style="cursor: pointer;">here</MudLink> to sign in.</MudText>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@SignUpAsync" Disabled="_submitted || !_success" Class="ml-auto">Sign Up</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+
+
+
+@code {
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private HashSet<string> _selectedPermissions { get; set; } = new();
+    private readonly List<string> _allPermissions = new();
+    private string[] _permissions = Array.Empty<string>();
+    private SignUpModel _signUpModel = new();
+    private List<RoleModel> _roles;
+
+    private class SignUpModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+
+        [Required]
+        public string Password { get; set; }
+    }
+
+    private class RoleModel
+    {
+        public string Name { get; set; }
+        public string Value { get; set; }
+    }
+
+    private RoleModel _selectedRole = new()
+    {
+        Name = "User",
+        Value = "user"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        SetRoles();
+        await GetModules();
+    }
+
+    private IEnumerable<string> PasswordStrength(string password)
+    {
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            yield return "Password is required!";
+            yield break;
+        }
+        if (password.Length < 3)
+            yield return "Password must be at least of length 3.";
+    }
+    
+    private async Task GetModules()
+    {
+        var modules = await ApiResponseHandler.HandleAsync(ModuleService.BrowseAsync());
+        foreach (var module in modules)
+        {
+            _allPermissions.AddRange(module.Policies);
+        }
+        _permissions = _allPermissions.ToArray();
+    }
+
+    private void SetRoles()
+    {
+        _roles = new()
+        {
+            new RoleModel
+            {
+                Name = "User",
+                Value = "user"
+            },
+            new RoleModel
+            {
+                Name = "Admin",
+                Value = "admin"
+            }
+        };
+    }
+
+    private async Task SignUpAsync()
+    {
+        _submitted = true;
+        var response = await ApiResponseHandler.HandleAsync(UserService.SignUpAsync(new SignUpRequest
+        {
+            Email = _signUpModel.Email,
+            Password = _signUpModel.Password,
+            Role = _selectedRole.Value,
+            Claims = new Claims
+            {
+                Permissions = _selectedPermissions.ToArray()
+            }
+        }));
+
+        _submitted = false;
+
+        if (response is null || response.HttpResponse.StatusCode == HttpStatusCode.BadGateway)
+        {
+            Snackbar.Add("Couldn't sign up - service is unavailable :(", Severity.Error);
+            return;
+        }
+
+        if (response.Succeeded)
+        {
+            _selectedPermissions.Clear();
+            StateHasChanged();
+            _signUpModel.Email = default;
+            _signUpModel.Password = default;
+            Snackbar.Add("Account has been created.", Severity.Success);
+            NavigationManager.NavigateTo("sign-in");
+        }
+    }
+}

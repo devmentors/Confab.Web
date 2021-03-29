@@ -1,0 +1,100 @@
+﻿@page "/hosts/create"
+@using System.ComponentModel.DataAnnotations
+@using Confab.Web.Core.Hosts
+@using Confab.Web.Core.Hosts.Requests
+@using Confab.Web.UI.Services
+@inject NavigationManager NavigationManager
+@inject IHostService HostService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 30%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Add Host</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudForm @bind-IsValid="@_success" Model="@_createHostModel" @bind-Errors="@_errors">
+                    <MudTextField T="string" @bind-Value="@_createHostModel.Name" Required="true" RequiredError="Name is required!"
+                                  Validation="@(new Func<string, IEnumerable<string>>(NameStrength))" HelperText="Name"/>
+                    <MudTextField T="string" @bind-Value="@_createHostModel.Description"
+                                  Validation="@(new Func<string, IEnumerable<string>>(DescriptionStrength))" Lines="10"
+                                  Required="true" RequiredError="Description is required!" HelperText="Description"/>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitted || !_success" OnClick="Create" Class="ml-auto">Create</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+
+@code {
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private CreateHostModel _createHostModel = new();
+
+    private class CreateHostModel
+    {
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string Name { get; set; }
+
+        [Required]
+        [MinLength(10)]
+        [MaxLength(1000)]
+        public string Description { get; set; }
+    }
+    
+    private IEnumerable<string> NameStrength(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            yield return "Name is required!";
+            yield break;
+        }
+        
+        if (name.Length < 3)
+            yield return "Name must be at least of length 3.";
+        
+        if (name.Length > 100)
+            yield return "Name length must be less than 100.";
+    }
+    
+    private IEnumerable<string> DescriptionStrength(string description)
+    {
+        if (string.IsNullOrWhiteSpace(description))
+        {
+            yield return "Description is required!";
+            yield break;
+        }
+        
+        if (description.Length < 10)
+            yield return "Description must be at least of length 10.";
+        
+        if (description.Length > 1000)
+            yield return "Description length must be less than 1000.";
+    }
+
+    private async Task Create()
+    {
+        _submitted = true;
+        var request = new CreateHostRequest
+        {
+            Name = _createHostModel.Name,
+            Description = _createHostModel.Description,
+        };
+        var response = await ApiResponseHandler.HandleAsync(HostService.CreateAsync(request));
+        _submitted = false;
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Host has been created.", Severity.Success);
+            NavigationManager.NavigateTo("hosts");
+        }
+    }
+}

@@ -1,0 +1,123 @@
+﻿@page "/speakers/create"
+@using Confab.Web.Core.Hosts
+@using Confab.Web.UI.Services
+@using System.ComponentModel.DataAnnotations
+@using Confab.Web.Core.Speakers
+@using Confab.Web.Core.Speakers.Requests
+@using Confab.Web.Core.Tickets
+@inject NavigationManager NavigationManager
+@inject ITicketService TicketService
+@inject IAuthenticationService AuthenticationService
+@inject ISpeakerService SpeakerService
+@inject IHostService HostService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 10%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Create Speaker</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudForm @bind-IsValid="@_success" Model="@_createSpeakerModel" @bind-Errors="@_errors">
+                    <MudTextField T="string" @bind-Value="@_createSpeakerModel.Email" Required="true" RequiredError="Email is required!"
+                                  Validation="@(new EmailAddressAttribute() {ErrorMessage = "The email address is invalid"})" HelperText="Email"/>
+                    <MudTextField T="string" @bind-Value="@_createSpeakerModel.FullName" Required="true" RequiredError="Full Name is required!"
+                                  Validation="@(new Func<string, IEnumerable<string>>(FullNameStrength))"HelperText="Full Name"/>
+                    <MudTextField T="string" @bind-Value="@_createSpeakerModel.Bio"
+                                  Validation="@(new Func<string, IEnumerable<string>>(BioStrength))" Lines="5"
+                                  Required="true" RequiredError="Bio is required!" HelperText="Bio"/>
+                    <MudTextField T="string" @bind-Value="@_createSpeakerModel.AvatarUrl" HelperText="Avatar Url"/>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitted || !_success" OnClick="Create" Class="ml-auto">Create</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+@code {
+    private class CreateSpeakerModel
+    {
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string Email { get; set; }
+        
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string FullName { get; set; }
+
+        [Required]
+        [MinLength(10)]
+        [MaxLength(1000)]
+        public string Bio { get; set; }
+
+        public string AvatarUrl { get; set; }
+    }
+    
+    private readonly CreateSpeakerModel _createSpeakerModel = new();
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private List<Guid> _speakersIds = new();
+
+    protected override void OnInitialized()
+    {
+        var userId = AuthenticationService.User.Id;
+        _speakersIds.Add(new Guid(userId));
+    }
+
+    private async Task Create()
+    {
+        _submitted = true;
+        var request = new CreateSpeakerRequest
+        {
+            Email = _createSpeakerModel.Email,
+            FullName = _createSpeakerModel.FullName,
+            Bio = _createSpeakerModel.Bio,
+            AvatarUrl = _createSpeakerModel.AvatarUrl
+        };
+        var response = await ApiResponseHandler.HandleAsync(SpeakerService.CreateAsync(request));
+        _submitted = false;
+        
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Speaker has been created.", Severity.Success);
+            NavigationManager.NavigateTo($"conferences");
+        }
+    }
+
+    private IEnumerable<string> FullNameStrength(string fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            yield return "Full Name is required!";
+            yield break;
+        }
+        if (fullName.Length < 3)
+            yield return "Full Name must be at least of length 3.";
+        
+        if (fullName.Length > 100)
+            yield return "Full Name length must be less than 100.";
+    }
+    
+    private IEnumerable<string> BioStrength(string bio)
+    {
+        if (string.IsNullOrWhiteSpace(bio))
+        {
+            yield return "Bio is required!";
+            yield break;
+        }
+        
+        if (bio.Length < 10)
+            yield return "Bio must be at least of length 10.";
+        
+        if (bio.Length > 1000)
+            yield return "Bio length must be less than 1000.";
+    }
+}

@@ -1,0 +1,79 @@
+﻿@page "/conferences/{conferenceId:guid}/tracks/create"
+@using System.ComponentModel.DataAnnotations
+@using Confab.Web.Core.Agendas
+@using Confab.Web.Core.Agendas.Requests
+@using Confab.Web.UI.Services
+@inject NavigationManager NavigationManager
+@inject IAgendaTrackService AgendaTrackService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 30%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Create Track</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudForm @bind-IsValid="@_success" Model="@_createTrackModel" @bind-Errors="@_errors">
+                    <MudTextField T="string" @bind-Value="@_createTrackModel.Name" Required="true" RequiredError="Name is required!"
+                                  Validation="@(new Func<string, IEnumerable<string>>(NameStrength))" HelperText="Name"/>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitted || !_success" OnClick="Create" Class="ml-auto">Create</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+
+@code {
+    [Parameter]
+    public Guid conferenceId { get; set; }
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private CreateTrackModel _createTrackModel = new();
+
+    private class CreateTrackModel
+    {
+        [Required]
+        [MinLength(3)]
+        [MaxLength(100)]
+        public string Name { get; set; }
+    }
+    
+    private IEnumerable<string> NameStrength(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            yield return "Name is required!";
+            yield break;
+        }
+        
+        if (name.Length < 3)
+            yield return "Name must be at least of length 3.";
+        
+        if (name.Length > 100)
+            yield return "Name length must be less than 100.";
+    }
+
+    private async Task Create()
+    {
+        _submitted = true;
+        var request = new CreateAgendaTrackRequest
+        {
+            ConferenceId = conferenceId,
+            Name = _createTrackModel.Name,
+        };
+        var response = await ApiResponseHandler.HandleAsync(AgendaTrackService.CreateAsync(request));
+        _submitted = false;
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Track has been created.", Severity.Success);
+            NavigationManager.NavigateTo($"/conferences/{conferenceId}/tracks");
+        }
+    }
+}

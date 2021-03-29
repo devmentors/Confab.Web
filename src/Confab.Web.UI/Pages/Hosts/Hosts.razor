@@ -1,0 +1,113 @@
+﻿@page "/hosts"
+@using Confab.Web.Core.DTO
+@using Confab.Web.Core.Hosts
+@using Confab.Web.Core.Users
+@using Confab.Web.UI.Services
+@inject IHostService HostService
+@inject IUserService UserService
+@inject IApiResponseHandler ApiResponseHandler
+
+@if (_hosts.Any())
+{
+    <MudContainer Fixed="true" MaxWidth="MaxWidth.Small">
+        <MudTable Items="@_hosts" Hover="true" Breakpoint="Breakpoint.Sm" Style="margin-top: 5%">
+            <ToolBarContent>
+                <MudText Typo="Typo.h6">Hosts</MudText>
+                <MudAppBarSpacer></MudAppBarSpacer>
+                @if (_createButtonVisible)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" Link="/hosts/create">Create</MudButton>
+                }
+            </ToolBarContent>
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh>Action</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name">@context.Name</MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd DataLabel="Remove">
+                    <MudIconButton OnClick="() => OnButtonClicked(context.Id)" Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Disabled="_submitted"></MudIconButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudGrid>
+            <MudItem xs="12" Style="margin-top: 20%">
+                <MudGrid Spacing="1" Justify="Justify.Center">
+                    <MudItem>
+                        <MudText Typo="Typo.h4"><i>No hosts.</i></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+        @if (_createButtonVisible)
+        {
+            <br/>
+            <MudGrid Spacing="1" Justify="Justify.Center">
+                <MudItem>
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" Link="/hosts/create">Create</MudButton>
+                </MudItem>
+            </MudGrid>
+        }
+    </MudContainer>
+}
+
+@code {
+    private List<HostDto> _hosts = new();
+    private bool _submitted;
+    private bool _createButtonVisible;
+    [Inject] private IDialogService DialogService { get; set; }
+                
+    private async void OnButtonClicked(Guid id)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Remove host", 
+            "Are you sure?", 
+            yesText:"Delete", cancelText:"Cancel");
+        if (result is true)
+        {
+            await RemoveAsync(id);
+        }
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetHosts();
+        await SetButtonVisibility();
+    }
+
+    private async Task SetButtonVisibility()
+    {
+        var user = await ApiResponseHandler.HandleAsync(UserService.GetAsync());
+        if (!user.Claims.TryGetValue("permissions", out var permissions))
+        {
+            return;
+        }
+        _createButtonVisible = permissions.Contains("hosts");
+    }
+
+    private async Task GetHosts()
+    {
+        _hosts = await ApiResponseHandler.HandleAsync(HostService.BrowseAsync());
+    }
+    
+    private async Task RemoveAsync(Guid id)
+    {
+        _submitted = true;
+        var response = await ApiResponseHandler.HandleAsync(HostService.RemoveAsync(id));
+        _submitted = false;
+        
+        if (response.Succeeded)
+        {
+            _hosts.Remove(_hosts.Single(x => x.Id == id));
+            Snackbar.Add("Host has been removed.", Severity.Success);
+        }
+    }
+}

@@ -1,0 +1,68 @@
+﻿@page "/account"
+@using Microsoft.AspNetCore.Authorization
+@using Confab.Web.UI.Services
+@using Confab.Web.Core.Tickets
+@inject NavigationManager NavigationManager
+@inject ITicketService TicketService
+@inject IAuthenticationService AuthenticationService
+@inject IApiResponseHandler ApiResponseHandler
+@attribute [Authorize]
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <MudGrid>
+        <MudItem xs="12" Style="margin-top: 20%">
+            <MudGrid Spacing="1" Justify="Justify.Center">
+                <MudItem>
+                    <MudText Typo="Typo.h4">Hello <span class="ColorSecondary"><b>@AuthenticationService.User.Email</b></span></MudText>
+                </MudItem>
+            </MudGrid>
+            <br/>
+            <MudGrid Spacing="1" Justify="Justify.Center">
+                <MudItem>
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="SignOutAsync">Sign out</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudItem>
+    </MudGrid>
+    @if (_tickets.Any())
+    {
+        <br/>
+        <br/>
+        <MudText Typo="Typo.h6" Align="Align.Center" GutterBottom="true" Color="Color.Primary">Purchased tickets</MudText>
+        <br/>
+        <MudGrid>
+            <MudGrid Spacing="2">
+                @foreach (var ticket in _tickets)
+                {
+                    <MudItem xs="12">
+                        <MudPaper>
+                            <MudText Class="d-flex align-center justify-center"><b>@ticket.Conference.Name</b></MudText>
+                            <MudText Class="d-flex align-center justify-center">@ticket.Price$</MudText>
+                            <MudText Class="d-flex align-center justify-center">@ticket.PurchasedAt</MudText>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudGrid>
+    }
+</MudContainer>
+
+@code {
+    private List<TicketResponse> _tickets = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetTickets();
+    }
+
+    private async Task GetTickets()
+    {
+        _tickets = await ApiResponseHandler.HandleAsync(TicketService.BrowsePurchasedTickets());
+    }
+
+    private void SignOutAsync()
+    {
+        NavigationManager.NavigateTo("sign-out");
+        Snackbar.Add("Signed out.", Severity.Success);
+    }
+}

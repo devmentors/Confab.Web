@@ -1,0 +1,66 @@
+﻿@page "/conferences/{conferenceId:guid}/cfp"
+@using Confab.Web.Core.Hosts
+@using Confab.Web.UI.Services
+@using Confab.Web.Core.CFP
+@using Confab.Web.Core.CFP.Requests
+@inject NavigationManager NavigationManager
+@inject ICFPService CFPService
+@inject IHostService HostService
+@inject IApiResponseHandler ApiResponseHandler
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 10%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Create Call For Papers</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudDateRangePicker HelperText="Date" DateRange="@(new DateRange(From, To))"/>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Create" Class="ml-auto" Disabled="_submitted">Create</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+@code {
+    [Parameter]
+    public Guid conferenceId { get; set; }
+    private DateTime From { get; set; } = DateTime.UtcNow;
+    private DateTime To { get; set; } = DateTime.UtcNow.AddDays(7);
+    private bool _submitted;
+
+    protected override void OnInitialized()
+    {
+        From = DateTime.UtcNow;
+        To = DateTime.UtcNow.AddDays(7);
+    }
+
+    private async Task Create()
+    {
+        if (To <= From)
+        {
+            Snackbar.Add("Invalid dates.", Severity.Error);
+            return;
+        }
+        
+        _submitted = true;
+        var request = new CreateCFPRequest
+        {
+            ConferenceId = conferenceId,
+            From = From,
+            To = To,
+        };
+        var response = await ApiResponseHandler.HandleAsync(CFPService.CreateAsync(request));
+        _submitted = false;
+        
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Call for papers have been created.", Severity.Success);
+            NavigationManager.NavigateTo($"conferences/{conferenceId}");
+        }
+    }
+}

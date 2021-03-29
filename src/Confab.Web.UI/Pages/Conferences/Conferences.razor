@@ -1,0 +1,139 @@
+﻿@page "/conferences"
+@using Confab.Web.Core.DTO
+@using Confab.Web.Core.Conferences
+@using Confab.Web.Core.Hosts
+@using Confab.Web.Core.Users
+@using Confab.Web.UI.Services
+@inject IConferenceService ConferenceService
+@inject IHostService HostService
+@inject IApiResponseHandler ApiResponseHandler
+@inject IUserService UserService
+@inject NavigationManager NavigationManager
+
+@if (_conferences.Any())
+{
+    <MudContainer MaxWidth="MaxWidth.Large">
+        <span style="align-content: center">
+            @if (_hasHosts && _createButtonVisible)
+            {
+                <MudButton Style="margin-top: 1%; float: right" Variant="Variant.Filled" Color="Color.Default" Link="/conferences/create">Create</MudButton>
+            }
+        </span>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudGrid Spacing="5" Justify="Justify.Center">
+                    @foreach (var conference in _conferences)
+                    {
+                        <MudItem xs=12 sm=6>
+                            <MudCard Style="height: 300px">
+                                <MudCardHeader>
+                                    <CardHeaderContent>
+                                        <MudText Align="Align.Center" Typo="Typo.h5"><b>@conference.Name</b></MudText>
+                                    </CardHeaderContent>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudGrid>
+                                        <MudItem xs="12">
+                                            <MudGrid Spacing="1" Justify="Justify.Center">
+                                                <MudItem></MudItem>
+                                                <MudItem>
+                                                    @if (conference.LogoUrl is not null)
+                                                    {
+                                                        <img class="image" src="@conference.LogoUrl" Height="100px" Width="200px"/>
+                                                    }
+                                                    else
+                                                    {
+                                                        <img src="/img/placeholder.png" Height="100px" Width="200px"/>
+                                                    }
+                                                </MudItem>
+                                                <MudItem></MudItem>
+                                            </MudGrid>
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudCardContent>
+                                <MudCardActions>
+                                    <MudGrid>
+                                        <MudItem xs="12">
+                                            <MudGrid Spacing="1" Justify="Justify.Center">
+                                                <MudItem></MudItem>
+                                                <MudItem>
+                                                    <MudButton Variant="Variant.Filled" Color="Color.Default" Class="ml-auto" OnClick="() => RedirectToDetails(conference.Id)">Details</MudButton>
+                                                </MudItem>
+                                                <MudItem></MudItem>
+                                            </MudGrid>
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudCardActions>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudGrid>
+            <MudItem xs="12" Style="margin-top: 20%">
+                <MudGrid Spacing="1" Justify="Justify.Center">
+                    <MudItem>
+                        <MudText Typo="Typo.h4"><i>No conferences.</i></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+        @if (_hasHosts && _createButtonVisible)
+        {
+            <br/>
+            <MudGrid Spacing="1" Justify="Justify.Center">
+                <MudItem>
+                    <MudButton Variant="Variant.Filled" Color="Color.Default" Link="/conferences/create">Create</MudButton>
+                </MudItem>
+            </MudGrid> 
+        }
+    </MudContainer>
+}
+
+
+@code{
+
+    private List<ConferenceDto> _conferences = new();
+    private bool _hasHosts;
+    private bool _createButtonVisible;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetConferences();
+        await GetHosts();
+        await SetButtonVisibility();
+    }
+
+    private async Task SetButtonVisibility()
+    {
+        var user = await ApiResponseHandler.HandleAsync(UserService.GetAsync());
+        if (!user.Claims.TryGetValue("permissions", out var permissions))
+        {
+            return;
+        }
+        _createButtonVisible = permissions.Contains("conferences");
+    }
+
+    private async Task GetConferences()
+    {
+        _conferences = await ApiResponseHandler.HandleAsync(ConferenceService.BrowseAsync());
+    }
+
+    private async Task GetHosts()
+    {
+        var hosts = await ApiResponseHandler.HandleAsync(HostService.BrowseAsync());
+        _hasHosts = hosts.Any();
+    }
+
+    public void RedirectToDetails(Guid id)
+    {
+        NavigationManager.NavigateTo($"/conferences/{id}");
+    }
+}
+

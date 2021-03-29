@@ -1,0 +1,353 @@
+﻿@page "/conferences/{conferenceId:guid}"
+@using Confab.Web.Core.DTO
+@using Confab.Web.Core.Conferences
+@using Confab.Web.Core.Tickets
+@using Confab.Web.UI.Services
+@using Confab.Web.Core.CFP
+@using Confab.Web.Core.Users
+@inject IConferenceService ConferenceService
+@inject ITicketService TicketService
+@inject ICFPService CFPService
+@inject IApiResponseHandler ApiResponseHandler
+@inject NavigationManager NavigationManager
+@inject IUserService UserService
+
+@if (_conferenceDetails is {})
+{
+    <MudContainer Class="mt-16" MaxWidth="MaxWidth.Medium">
+        <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true" Color="Color.Secondary"><b>@_conferenceDetails.Name</b></MudText>
+        <MudGrid Spacing="6" Class="mt-16">
+            <MudItem xs="8">
+                <br/>
+                <MudPaper Class="d-flex flex-column" Style="height:100%;" Outlined="true">
+                    <MudList Clickable="true">
+                        <MudListItem Icon="@Icons.Material.Filled.DateRange">
+                            <div class="d-flex">
+                                <MudText>Date:&nbsp;</MudText>
+                                <MudText Inline="true" Class="ml-auto" Style="font-weight: bold">@_conferenceDetails.From.ToString("d") - @_conferenceDetails.To.ToString("d")</MudText>
+                            </div>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.LocationPin">
+                            <div class="d-flex">
+                                <MudText>Location:&nbsp;</MudText>
+                                <MudText Class="ml-auto" Style="font-weight: bold">@_conferenceDetails.Location</MudText>
+                            </div>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Business">
+                            <div class="d-flex">
+                                <MudText>Host:&nbsp;</MudText>
+                                <MudText Class="ml-auto" Style="font-weight: bold">@_conferenceDetails.HostName</MudText>
+                            </div>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.People">
+                            <div class="d-flex">
+                                <MudText>Participants Limit:&nbsp;</MudText>
+                                <MudText Class="ml-auto" Style="font-weight: bold">
+                                    @if (_conferenceDetails.ParticipantsLimit is {})
+                                    {
+                                        @_conferenceDetails.ParticipantsLimit
+                                    }
+                                    else
+                                    {
+                                        <span>unlimited</span>
+                                    }
+                                </MudText>
+                            </div>
+                        </MudListItem>
+                        <MudListItem Icon="@Icons.Material.Filled.Description">
+                            <div class="d-flex">
+                                <MudText>Description:&nbsp;</MudText>
+                                <MudText Class="ml-auto" Style="font-weight: bold">@_conferenceDetails.Description</MudText>
+                            </div>
+                        </MudListItem>
+                    </MudList>
+                    <div class="mt-auto">
+                        <MudItem xs="12" Class="d-flex justify-center">
+                            @if (_removeButtonVisible)
+                            {
+                                <MudButton OnClick="() => OnRemoveButtonClicked()" Variant="Variant.Filled" Color="Color.Error" Disabled="_submittedRemove">Remove</MudButton>
+                            }
+                            &nbsp;&nbsp;&nbsp;
+                            @* <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => NavigateToTickets()">Tickets</MudButton> *@
+                            @* &nbsp;&nbsp;&nbsp; *@
+                            @if (_submissionsButtonVisible)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => NavigateToSubmissions()">Submissions</MudButton>
+                            }
+                            &nbsp;&nbsp;&nbsp;
+                            @if (_cfp is null)
+                            {
+                                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => NavigateToCFP()">CFP</MudButton>
+                            }
+                            else
+                            {
+                                @if (_cfp.IsOpened)
+                                {
+                                    @if (_cfpButtonVisible)
+                                    {
+                                        <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => CloseCFP()" Disabled="_submittedCloseCFP">Close CFP</MudButton>
+                                    }
+                                    <span>&nbsp;&nbsp;&nbsp;</span>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => NavigateToSubmission()">Submission</MudButton>
+                                }
+                                else if (_cfpButtonVisible)
+                                {
+                                    <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => OpenCFP()" Disabled="_submittedOpenCFP">Open CFP</MudButton>
+                                }
+                            }
+                        </MudItem>
+                        @if (_tracksButtonVisible)
+                        {
+                            <br/>
+                            <MudItem xs="12" Class="d-flex justify-center">
+                                <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="() => NavigateToTracks()">Tracks</MudButton>
+                            </MudItem>
+                        }
+                        <br/>
+                    </div>
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="4">
+                <MudText Typo="Typo.h5" GutterBottom="true"><br/></MudText>
+                <MudGrid Spacing="1" Justify="Justify.Center">
+                    <MudItem></MudItem>
+                    <MudItem xs="12">
+                        @if (_conferenceDetails.LogoUrl is not null)
+                        {
+                            <img src="@_conferenceDetails.LogoUrl" width="400"/>
+                        }
+                        else
+                        {
+                            <img src="/img/placeholder.png" width="400"/>
+                        }
+                    </MudItem>
+                    <MudItem></MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+        @* <MudTabs Elevation="4" Rounded="true" Centered="true" Color="@Color.Default"> *@
+            @* <MudTabPanel Text="Tickets"> *@
+                @if (_tickets.Any())
+                {
+                    <br/><br/><br/><br/>
+                    <MudText Typo="Typo.h4" Align="Align.Center" GutterBottom="true" Color="Color.Secondary">Tickets</MudText>
+                    <MudGrid Spacing="6" Class="mt-16">
+                        <MudGrid Spacing="2">
+                            @foreach (var ticket in _tickets)
+                            {
+                                @if (ticket.IsAvailable)
+                                {
+                                    <MudItem xs="12">
+                                        <MudPaper>
+                                            <MudText Class="d-flex align-center justify-center"><b>@ticket.Name, @ticket.SaleFrom.ToString("d") - @ticket.SaleTo.ToString("d")</b></MudText>
+                                            <br/>
+                                            @if (ticket.IsFree)
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">Free</MudText>
+                                            }
+                                            else
+                                            {
+                                                <MudText Class="d-flex align-center justify-center" Color="Color.Primary"><b>@ticket.TicketPrice$</b></MudText>
+                                            }
+                                            @if (ticket.UnlimitedTickets)
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">Unlimited</MudText>
+                                            }
+                                            else
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">@ticket.AvailableTickets/@ticket.TotalTickets</MudText>
+                                            }
+                                            @if (ticket.AvailableTickets > 0)
+                                            {
+                                                <br/>
+                                                <MudItem xs="12" Class="d-flex justify-center">
+                                                    <MudButton Variant="Variant.Filled" Color="Color.Default" FullWidth="true" OnClick="() => OnPurchaseButtonClicked()" Disabled="_submittedPurchaseTicket">Purchase</MudButton>
+                                                </MudItem>
+                                                <br/>
+                                            }
+                                        </MudPaper>
+                                    </MudItem>
+                                }
+                                else
+                                {
+                                    <MudItem xs="12">
+                                        <MudPaper>
+                                            <MudText Class="d-flex align-center justify-center"><b>@ticket.Name, @ticket.SaleFrom.ToString("d") - @ticket.SaleTo.ToString("d")</b></MudText>
+                                            <br/>
+                                            @if (ticket.IsFree)
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">Free</MudText>
+                                            }
+                                            else
+                                            {
+                                                <MudText Class="d-flex align-center justify-center" Color="Color.Primary"><b>@ticket.TicketPrice$</b></MudText>
+                                            }
+                                            @if (ticket.UnlimitedTickets)
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">Unlimited</MudText>
+                                            }
+                                            else
+                                            {
+                                                <MudText Class="d-flex align-center justify-center">@ticket.AvailableTickets/@ticket.TotalTickets</MudText>
+                                            }
+                                            @if (ticket.AvailableTickets > 0)
+                                            {
+                                                <br/>
+                                                <MudItem xs="12" Class="d-flex justify-center">
+                                                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="true">Purchase</MudButton>
+                                                </MudItem>
+                                                <br/>
+                                            }
+                                        </MudPaper>
+                                    </MudItem>
+                                }
+                                <br/>
+                                <br/>
+                            }
+                        </MudGrid>
+                    </MudGrid>
+                }
+    @*         </MudTabPanel> *@
+    @*     </MudTabs> *@
+     </MudContainer> 
+}
+
+@code {
+    [Parameter]
+    public Guid conferenceId { get; set; }
+    private List<TicketDto> _tickets = new();
+    private CFPDto _cfp = new();
+    private bool _submittedOpenCFP;
+    private bool _submittedCloseCFP;
+    private bool _submittedPurchaseTicket;
+    private bool _submittedRemove;
+    private bool _submissionsButtonVisible;
+    private bool _cfpButtonVisible;
+    private bool _tracksButtonVisible;
+    private bool _removeButtonVisible;
+    private ConferenceDetailsDto _conferenceDetails = new();
+    [Inject] private IDialogService DialogService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _conferenceDetails = await ApiResponseHandler.HandleAsync(ConferenceService.GetAsync(conferenceId));
+        _tickets = await ApiResponseHandler.HandleAsync(TicketService.BrowseAsync(conferenceId));
+        _cfp = await ApiResponseHandler.HandleAsync(CFPService.GetAsync(conferenceId));
+        await SetButtonsVisibility();
+    }
+
+    private async Task SetButtonsVisibility()
+    {
+        var user = await ApiResponseHandler.HandleAsync(UserService.GetAsync());
+        if (!user.Claims.TryGetValue("permissions", out var permissions))
+        {
+            return;
+        }
+        _submissionsButtonVisible = permissions.Contains("submissions");
+        _cfpButtonVisible = permissions.Contains("cfp");
+        _tracksButtonVisible = permissions.Contains("agendas");
+        _removeButtonVisible = permissions.Contains("conferences");
+    }
+
+    private async Task RemoveAsync()
+    {
+        _submittedRemove = true;
+        var response = await ApiResponseHandler.HandleAsync(ConferenceService.RemoveAsync(conferenceId));
+        _submittedRemove = false;
+
+        if (response.Succeeded)
+        {
+            Snackbar.Add("Conference has been removed.", Severity.Success);
+            NavigationManager.NavigateTo("conferences");
+        }
+    }
+    
+    private async void OnRemoveButtonClicked()
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Remove conference", 
+            "Are you sure?", 
+            yesText:"Delete", cancelText:"Cancel");
+        if (result is true)
+        {
+            await RemoveAsync();
+        }
+        StateHasChanged();
+    }
+    
+    private async void OnPurchaseButtonClicked()
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Purchase ticket", 
+            "Are you sure?", 
+            yesText:"Yes", cancelText:"Cancel");
+        if (result is true)
+        {
+            await PurchaseTicket();
+        }
+        StateHasChanged();
+    }
+
+    private async Task PurchaseTicket()
+    {
+        _submittedPurchaseTicket = true;
+        var response = await ApiResponseHandler.HandleAsync(TicketService.PurchaseTicket(conferenceId));
+        _submittedPurchaseTicket = false;
+
+        if (response.Succeeded)
+        {
+            Snackbar.Add("You purchased a ticket.", Severity.Success);
+        }
+    }
+
+    private void NavigateToTickets()
+    {
+        NavigationManager.NavigateTo($"conferences/{conferenceId}/tickets");
+    }
+
+    private void NavigateToCFP()
+    {
+        NavigationManager.NavigateTo($"conferences/{conferenceId}/cfp");
+    }
+    
+    private void NavigateToSubmission()
+    {
+        NavigationManager.NavigateTo($"conferences/{conferenceId}/submissions/create");
+    }
+    
+    private void NavigateToSubmissions()
+    {
+        NavigationManager.NavigateTo($"conferences/{conferenceId}/submissions");
+    }
+    
+    private void NavigateToTracks()
+    {
+        NavigationManager.NavigateTo($"conferences/{conferenceId}/tracks");
+    }
+
+    private async Task CloseCFP()
+    {
+        _submittedCloseCFP = true;
+        var response = await ApiResponseHandler.HandleAsync(CFPService.CloseAsync(conferenceId));
+        _submittedCloseCFP = false;
+
+        if (response.Succeeded)
+        {
+            _cfp.IsOpened = false;
+            Snackbar.Add("Call for papers has been closed.", Severity.Success);
+        }
+    }
+
+    private async Task OpenCFP()
+    {
+        _submittedOpenCFP = true;
+        var response = await ApiResponseHandler.HandleAsync(CFPService.OpenAsync(conferenceId));
+        _submittedOpenCFP = false;
+
+        if (response.Succeeded)
+        {
+            _cfp.IsOpened = true;
+            Snackbar.Add("Call for papers has been opened.", Severity.Success);
+        }
+    }
+}

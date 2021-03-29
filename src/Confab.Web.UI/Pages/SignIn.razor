@@ -1,0 +1,71 @@
+﻿@page "/sign-in"
+@using System.ComponentModel.DataAnnotations
+@using Confab.Web.UI.Services
+@inject ISnackbar Snackbar;
+@inject IAuthenticationService AuthenticationService
+@inject NavigationManager NavigationManager
+
+<MudContainer MaxWidth="MaxWidth.Small">
+    <div style="max-width: 500px; margin-top: 30%;">
+        <MudCard>
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Color="Color.Secondary" Align="Align.Center" Typo="Typo.h5"><b>Sign In</b></MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudForm @bind-IsValid="@_success" Model="@_signInModel" @bind-Errors="@_errors">
+                    <MudTextField T="string" @bind-Value="@_signInModel.Email" HelperText="Email" Required="true" RequiredError="Email is required!"
+                                  Validation="@(new EmailAddressAttribute() {ErrorMessage = "The email address is invalid"})"/>
+                    <MudTextField T="string" @bind-Value="@_signInModel.Password" HelperText="Password"
+                                  InputType="InputType.Password" Required="true"
+                                  RequiredError="Password is required!"/>
+                    <br/>
+                    <MudText>Don't have an account yet? Click <MudLink Color="Color.Secondary" Href="/sign-up" Style="cursor: pointer;">here</MudLink> to sign up.</MudText>
+                </MudForm>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitted || !_success" OnClick="SignInAsync" Class="ml-auto">Sign in</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </div>
+</MudContainer>
+
+@code {
+    private bool _success;
+    private bool _submitted;
+    private string[] _errors = { };
+    private SignInModel _signInModel = new();
+
+    private class SignInModel
+    {
+        [Required]
+        [EmailAddress]
+        public string Email { get; set; }
+
+        [Required]
+        public string Password { get; set; }
+    }
+    
+    private async Task SignInAsync()
+    {
+        _submitted = true;
+        var signedIn = await AuthenticationService.SignInAsync(_signInModel.Email, _signInModel.Password);
+        _submitted = false;
+
+        if (signedIn is null)
+        {
+            Snackbar.Add("Couldn't sign in - service is unavailable :(", Severity.Error);
+            return;
+        }
+        if (signedIn.Value)
+        {
+            Snackbar.Add("Signed in.", Severity.Success);
+            NavigationManager.NavigateTo("/");
+        }
+        else
+        {
+            Snackbar.Add("Invalid credentials.", Severity.Error);
+        }
+    }
+}

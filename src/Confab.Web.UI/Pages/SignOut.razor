@@ -1,0 +1,11 @@
+﻿@page "/sign-out"
+@using Confab.Web.UI.Services
+@inject IAuthenticationService AuthenticationService
+
+@code {
+
+    protected override async void OnInitialized()
+    {
+        await AuthenticationService.SignOutAsync();
+    }
+}

@@ -1,0 +1,153 @@
+﻿@page "/conferences/{conferenceId:guid}/submissions"
+@using Confab.Web.Core.DTO
+@using Confab.Web.Core.Submissions
+@using Confab.Web.UI.Services
+@inject ISubmissionService SubmissionService
+@inject IApiResponseHandler ApiResponseHandler
+
+@if (_submissions.Any())
+{
+    <MudContainer Fixed="true" MaxWidth="MaxWidth.Small">
+        <MudTable Items="@_submissions" Hover="true" Breakpoint="Breakpoint.Sm" Style="margin-top: 5%">
+            <HeaderContent>
+                <MudTh>Title</MudTh>
+                <MudTh>Description</MudTh>
+                <MudTh>Level</MudTh>
+                <MudTh>Status</MudTh>
+                @* <MudTh>Tags</MudTh> *@
+                @* <MudTh>Speakers</MudTh> *@
+                <MudTh>Approve</MudTh>
+                <MudTh>Reject</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Name"><b>@context.Title</b></MudTd>
+                <MudTd DataLabel="Description">@context.Description</MudTd>
+                <MudTd DataLabel="Level">@context.Level</MudTd>
+                <MudTd DataLabel="Status">
+                    @if (context.Status == SubmissionStatus.Approved)
+                    {
+                        <MudText Color="Color.Success">@context.Status</MudText>
+                    }
+                    @if (context.Status == SubmissionStatus.Rejected)
+                    {
+                        <MudText Color="Color.Error">@context.Status</MudText>
+                    }
+                    @if (context.Status == SubmissionStatus.Pending)
+                    {
+                        <MudText Color="Color.Default">@context.Status</MudText>
+                    }
+                </MudTd>
+
+                @if (context.Status == SubmissionStatus.Rejected || context.Status == SubmissionStatus.Approved)
+                {
+                    <MudTd DataLabel="Approve">
+                        <MudButton Disabled="true" Color="Color.Success" Variant="Variant.Filled">Approve</MudButton>
+                    </MudTd>
+                    <MudTd DataLabel="Reject">
+                        <MudButton Disabled="true" Color="Color.Error" Variant="Variant.Filled">Reject</MudButton>
+                    </MudTd>
+                }
+                
+                @if (context.Status == SubmissionStatus.Pending)
+                {
+                    <MudTd DataLabel="Approve">
+                        <MudButton OnClick="() => Approve(context)" Color="Color.Success" Variant="Variant.Filled" Disabled="_submittedApprove">Approve</MudButton>
+                    </MudTd>
+                    <MudTd DataLabel="Reject">
+                        <MudButton OnClick="() => Reject(context)" Color="Color.Error" Variant="Variant.Filled" Disabled="_submittedReject">Reject</MudButton>
+                    </MudTd>
+                }
+                
+                @* public IEnumerable<string> Tags { get; set; } *@
+                @* public IEnumerable<SpeakerDto> Speakers { get; set; } *@
+            </RowTemplate>
+        </MudTable>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Small">
+        <MudGrid>
+            <MudItem xs="12" Style="margin-top: 20%">
+                <MudGrid Spacing="1" Justify="Justify.Center">
+                    <MudItem>
+                        <MudText Typo="Typo.h4"><i>No submissions.</i></MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+    </MudContainer>
+}
+
+@code {
+    [Parameter]
+    public Guid conferenceId { get; set; }
+    private List<SubmissionDto> _submissions = new();
+    private bool _submittedApprove;
+    private bool _submittedReject;
+    [Inject] private IDialogService DialogService { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GetSubmissions();
+    }
+
+    private async Task GetSubmissions()
+    {
+        _submissions = await ApiResponseHandler.HandleAsync(SubmissionService.BrowseAsync(conferenceId));
+    }
+        
+    private async void Approve(SubmissionDto submission)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Approve submission",
+            "Are you sure?",
+            yesText:"Approve", cancelText:"Cancel");
+        if (result is true)
+        {
+            await ApproveAsync(submission);
+        }
+        StateHasChanged();
+    }
+    
+    private async void Reject(SubmissionDto submission)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Reject submission",
+            "Are you sure?",
+            yesText:"Reject", cancelText:"Cancel");
+        if (result is true)
+        {
+            await RejectAsync(submission);
+        }
+        StateHasChanged();
+    }
+
+    private async Task ApproveAsync(SubmissionDto submission)
+    {
+        _submittedApprove = true;
+        var response = await ApiResponseHandler.HandleAsync(SubmissionService.ApproveAsync(submission.Id));
+        _submittedApprove = false;
+    
+        if (response.Succeeded)
+        {
+            submission.Status = SubmissionStatus.Approved;
+            Snackbar.Add("Submission has been approved.", Severity.Success);
+        }
+        StateHasChanged();
+    }
+    
+    private async Task RejectAsync(SubmissionDto submission)
+    {
+        _submittedReject = true;
+        var response = await ApiResponseHandler.HandleAsync(SubmissionService.RejectAsync(submission.Id));
+        _submittedReject = false;
+    
+        if (response.Succeeded)
+        {
+            submission.Status = SubmissionStatus.Rejected;
+            Snackbar.Add("Submission has been rejected.", Severity.Success);
+        }
+        StateHasChanged();
+    }
+}
