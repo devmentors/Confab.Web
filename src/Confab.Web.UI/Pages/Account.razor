@@ -2,10 +2,13 @@
 @using Microsoft.AspNetCore.Authorization
 @using Confab.Web.UI.Services
 @using Confab.Web.Core.Tickets
+@using Confab.Web.Core.Users
+@using Confab.Web.Core.DTO
 @inject NavigationManager NavigationManager
 @inject ITicketService TicketService
 @inject IAuthenticationService AuthenticationService
 @inject IApiResponseHandler ApiResponseHandler
+@inject IUserService UserService
 @attribute [Authorize]
 
 <MudContainer MaxWidth="MaxWidth.Small">
@@ -22,6 +25,21 @@
                     <MudButton Variant="Variant.Filled" Color="Color.Default" OnClick="SignOutAsync">Sign out</MudButton>
                 </MudItem>
             </MudGrid>
+            @if (_permissions.Any())
+            {
+                <br/><br/><br/>
+                <MudGrid>
+                    <MudItem>
+                        <MudText Typo="Typo.h6"><b>Your permissions:</b></MudText>
+                        <MudList>
+                            @foreach (var permission in _permissions)
+                            {
+                                <MudListItem Text="@permission" Icon="fas fa-caret-right"/>
+                            }
+                        </MudList>
+                    </MudItem>
+                </MudGrid>
+            }
         </MudItem>
     </MudGrid>
     @if (_tickets.Any())
@@ -49,10 +67,22 @@
 
 @code {
     private List<TicketResponse> _tickets = new();
+    private IEnumerable<string> _permissions = new List<string>();
 
     protected override async Task OnInitializedAsync()
     {
         await GetTickets();
+        await GetUser();
+    }
+
+    private async Task GetUser()
+    {
+        var user = await ApiResponseHandler.HandleAsync(UserService.GetAsync());
+        if (!user.Claims.TryGetValue("permissions", out var permissions))
+        {
+            return;
+        }
+        _permissions = permissions;
     }
 
     private async Task GetTickets()
